@@ -4,6 +4,7 @@ import com.telemedicine.myhealth.res.Response;
 import com.telemedicine.myhealth.user.dto.LoginRequest;
 import com.telemedicine.myhealth.user.dto.LoginResponse;
 import com.telemedicine.myhealth.user.dto.RegistrationRequest;
+import com.telemedicine.myhealth.user.dto.ResetPasswordRequest;
 import com.telemedicine.myhealth.user.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +29,16 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<Response<LoginResponse>> login(@RequestBody @Valid LoginRequest loginRequest){
         return ResponseEntity.ok(authService.login(loginRequest));
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<Response<?>> forgotPassword(@RequestBody ResetPasswordRequest resetPasswordRequest){
+        return ResponseEntity.ok(authService.forgetPassword(resetPasswordRequest.getEmail()));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<Response<?>> resetPassword(@RequestBody ResetPasswordRequest resetPasswordRequest){
+        return ResponseEntity.ok(authService.updatePasswordViaResetCode(resetPasswordRequest));
     }
 
 }

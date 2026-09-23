@@ -16,14 +16,20 @@ import com.telemedicine.myhealth.user.dto.LoginRequest;
 import com.telemedicine.myhealth.user.dto.LoginResponse;
 import com.telemedicine.myhealth.user.dto.RegistrationRequest;
 import com.telemedicine.myhealth.user.dto.ResetPasswordRequest;
+import com.telemedicine.myhealth.user.entity.PasswordResetCode;
 import com.telemedicine.myhealth.user.entity.User;
+import com.telemedicine.myhealth.user.repo.PasswordResetRepo;
 import com.telemedicine.myhealth.user.repo.UserRepo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -37,14 +43,19 @@ public class AuthServiceImpl implements AuthService {
     private final RoleRepo roleRepo;
     private final PatientRepo patientRepo;
     private final DoctorRepo doctorRepo;
+    private final PasswordResetRepo passwordResetRepo;
 
     private final JwtService tokenService;
     private final NotificationService notificationService;
 
     private final PasswordEncoder passwordEncoder;
+    private final CodeGenerator codeGenerator;
 
     @Value("${login.link}")
     private String loginLink;
+
+    @Value("${password.reset.link}")
+    private String resetLink;
 
     @Override
     public Response<String> register(RegistrationRequest request) {
@@ -141,13 +152,78 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
+    @Transactional
     public Response<?> forgetPassword(String email) {
-        return null;
+        User user = userRepo.findByEmail(email).orElseThrow(() -> new NotFoundException("User Not Found"));
+        passwordResetRepo.deleteByUserId(user.getId());
+
+        String code = codeGenerator.generateUniqueCode();
+
+        PasswordResetCode resetCode = PasswordResetCode.builder()
+                .user(user)
+                .code(code)
+                .expiryDate(calculateExpiryDate())
+                .used(false)
+                .build();
+
+        passwordResetRepo.save(resetCode);
+
+        // Send email reset link out
+        Map<String, Object> templateVariables = new HashMap<>();
+        templateVariables.put("name", user.getName());
+        templateVariables.put("resetLink", resetLink + code);
+
+        NotificationDTO notificationDTO = NotificationDTO.builder()
+                .recipient(user.getEmail())
+                .subject("Password Reset Code")
+                .templateName("password-reset")
+                .templateVariables(templateVariables)
+                .build();
+
+        notificationService.sendEmail(notificationDTO, user);
+
+        return Response.builder()
+                .statusCode(HttpStatus.OK.value())
+                .message("Password reset code sent to your email")
+                .build();
     }
 
     @Override
+    @Transactional
     public Response<?> updatePasswordViaResetCode(ResetPasswordRequest resetPasswordRequest) {
-        return null;
+        String code = resetPasswordRequest.getCode();
+        String newPassword = resetPasswordRequest.getNewPassword();
+
+        PasswordResetCode resetCode = passwordResetRepo.findByCode(code)
+                .orElseThrow(() -> new BadRequestException("Invalid reset code"));
+
+        if (resetCode.getExpiryDate().isBefore(LocalDateTime.now())) {
+            passwordResetRepo.delete(resetCode);
+            throw new BadRequestException("Reset code has expired");
+        }
+
+        User user = resetCode.getUser();
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepo.save(user);
+
+        passwordResetRepo.delete(resetCode);
+
+        Map<String, Object> templateVariables = new HashMap<>();
+        templateVariables.put("name", user.getName());
+
+        NotificationDTO confirmationEmail = NotificationDTO.builder()
+                .recipient(user.getEmail())
+                .subject("Password Updated Successfully")
+                .templateName("password-update-confirmation")
+                .templateVariables(templateVariables)
+                .build();
+
+        notificationService.sendEmail(confirmationEmail, user);
+
+        return Response.builder()
+                .statusCode(HttpStatus.OK.value())
+                .message("Password updated successfully")
+                .build();
     }
 
     private void createPatientProfile(User user) {
@@ -185,5 +261,9 @@ public class AuthServiceImpl implements AuthService {
                 .build();
 
         notificationService.sendEmail(welcomeEmail, user);
+    }
+
+    private LocalDateTime calculateExpiryDate() {
+        return LocalDateTime.now().plusHours(5);
     }
 }

@@ -159,7 +159,7 @@ public class UserServiceImpl implements UserService {
 
             Files.copy(file.getInputStream(), filePath);
 
-            String fileUrl = uploadDir + newFileName;
+            String fileUrl = "profile-pictures/" + newFileName;
 
 
             user.setProfilePictureUrl(fileUrl);

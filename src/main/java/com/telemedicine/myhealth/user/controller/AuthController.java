@@ -6,13 +6,13 @@ import com.telemedicine.myhealth.user.dto.LoginResponse;
 import com.telemedicine.myhealth.user.dto.RegistrationRequest;
 import com.telemedicine.myhealth.user.dto.ResetPasswordRequest;
 import com.telemedicine.myhealth.user.service.AuthService;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.io.IOException;
 
 @RequiredArgsConstructor
 @RestController
@@ -39,6 +39,11 @@ public class AuthController {
     @PostMapping("/reset-password")
     public ResponseEntity<Response<?>> resetPassword(@RequestBody ResetPasswordRequest resetPasswordRequest){
         return ResponseEntity.ok(authService.updatePasswordViaResetCode(resetPasswordRequest));
+    }
+
+    @GetMapping("/login/google")
+    public void startGoogleLogin(HttpServletResponse response) throws IOException {
+        response.sendRedirect("/oauth2/authorization/google");
     }
 
 }

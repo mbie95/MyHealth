@@ -1,5 +1,6 @@
 package com.telemedicine.myhealth.user.entity;
 
+import com.telemedicine.myhealth.enums.AuthProvider;
 import com.telemedicine.myhealth.role.entity.Role;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
@@ -42,5 +43,8 @@ public class User {
             inverseJoinColumns = @JoinColumn(name = "role_id")
     )
     private List<Role> roles;
+
+    @Enumerated(EnumType.STRING)
+    private AuthProvider authProvider = AuthProvider.LOCAL;
 
 }
